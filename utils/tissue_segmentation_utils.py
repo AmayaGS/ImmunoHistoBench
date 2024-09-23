@@ -21,9 +21,6 @@ import openslide as osi
 import torch
 from torchvision import transforms
 
-# UNET model
-from models.UNet_models import UNet_512
-
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 if DEVICE == torch.device('cuda'):
     print("Using CUDA")

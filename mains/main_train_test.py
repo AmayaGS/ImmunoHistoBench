@@ -14,8 +14,8 @@ import torch
 from torch_geometric.loader import DataLoader
 
 # KRAG functions
-from train_test_loops.krag_train_val_loop import train_val_loop
-from train_test_loops.krag_test_loop import test_loop, ensemble_test_results
+from train_test_loops.train_val_loop import train_val_loop
+from train_test_loops.test_loop import test_loop, ensemble_test_results
 from utils.setup_utils import seed_everything
 from utils.profiling_utils import train_profiler, test_profiler
 from utils.model_utils import load_data, minority_sampler, prepare_data_loaders, initialise_model
@@ -122,7 +122,7 @@ def test_model(args, results_dir, logger):
     summarise_test_results(all_results, results_dir, logger, args)
 
     logger.info("Inference Profiling Results:")
-    test_profiler.report(is_training=False)
+    test_profiler.report(is_training=False, is_testing=True)
 
     ensemble_test_results(args, results_dir, all_results, logger)
 

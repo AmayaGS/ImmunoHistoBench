@@ -36,17 +36,18 @@ class Profiler:
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
 
-    def report(self, is_training=True):
+    def report(self, is_training=True, is_testing=False):
         if is_training:
             avg_time = np.mean(self.epoch_times)
             std_time = np.std(self.epoch_times)
             time_msg = f"Average training time per epoch: {avg_time:.2f} ± {std_time:.2f} seconds"
-        else:
+            self.logger.info(time_msg)
+        elif is_testing:
             avg_time = np.mean(self.inference_times)
             std_time = np.std(self.inference_times)
             time_msg = f"Average inference time per patient: {avg_time:.4f} ± {std_time:.4f} seconds"
+            self.logger.info(time_msg)
 
-        self.logger.info(time_msg)
         self.logger.info(f"Peak RAM usage: {self.peak_ram:.2f} GB")
         self.logger.info(f"Peak VRAM usage: {self.peak_vram:.2f} GB")
 
@@ -54,3 +55,4 @@ class Profiler:
 # Create global instances
 train_profiler = Profiler()
 test_profiler = Profiler()
+embedding_profiler = Profiler()

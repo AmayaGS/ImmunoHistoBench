@@ -2,17 +2,19 @@
 import os
 import pandas as pd
 import pickle
+import time
 
-# PyTorch
 import torch
 from torchvision import transforms
 
-# KRAG functions
+from utils.setup_utils import seed_everything, collate_fn_none
+from utils.profiling_utils import embedding_profiler
+from utils.embedding_utils import create_embedding
 from utils.dataloaders_utils import Loaders
+
 from models.embedding_models import VGG_embedding, resnet18_embedding, resnet50_embedding, convNext
 from models.embedding_models import contrastive_resnet18, CTransPath_embedding
 from models.embedding_models import GigaPath_embedding, UNI_embedding, BiOptimus_embedding, Phikon_embedding
-from utils.embedding_utils import seed_everything, collate_fn_none, create_embedding_graphs, save_graph_statistics
 
 # Set environment variables
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -37,7 +39,6 @@ def patch_embedding(args, logger):
         ]
     )
 
-
     if args.embedding_net == 'BiOptimus':
         transform = transforms.Compose(
             [
@@ -53,7 +54,7 @@ def patch_embedding(args, logger):
     extracted_patches = pd.read_csv(args.directory + "/extracted_patches_" + str(args.slide_level) + "/extracted_patches.csv")
 
     df = pd.merge(extracted_patches, patient_labels, on= args.patient_id)
-    # Drop duplicates to obtain the actuals patient IDs that have a label assigned by the pathologist
+    # Drop duplicates to obtain the actual patient IDs that have a label assigned by the pathologist
     df_labels = df.drop_duplicates(subset= args.patient_id)
     ids = list(df_labels[args.patient_id])
 
@@ -66,6 +67,10 @@ def patch_embedding(args, logger):
                                          shuffle=False, collate=collate_fn_none,
                                          label=args.label,
                                          patient_id=args.patient_id)
+
+    embedding_profiler.set_logger(logger)
+    embedding_profiler.reset_gpu_memory()
+    embedding_profiler.update_peak_memory()
 
     if args.embedding_net == 'resnet18':
         # Load weights for resnet18
@@ -109,11 +114,13 @@ def patch_embedding(args, logger):
     if use_gpu:
          embedding_net.cuda()
 
-    logger.info(f"Start creating {args.dataset_name} embeddings and graph dictionaries for {args.embedding_net}")
-    embedding_dict, knn_dict, rag_dict, krag_dict, statistics = create_embedding_graphs(embedding_net, slides, k=args.K, include_self=True, stain_types=args.stain_types, edge_types=args.edge_types)
-    logger.info(f"Done creating {args.dataset_name} embeddings and graph dictionaries for {args.embedding_net}")
+    embedding_profiler.update_peak_memory()
 
-    save_graph_statistics(statistics, args.directory)
+    logger.info(f"Start creating {args.dataset_name} embeddings for {args.embedding_net}")
+    start_time = time.time()
+    embedding_dict = create_embedding(embedding_net, slides,stain_types=args.stain_types)
+    embedding_time = time.time() - start_time
+    logger.info(f"Done creating {args.dataset_name} embeddings for {args.embedding_net}")
 
     dictionaries = os.path.join(args.directory, "dictionaries")
     os.makedirs(dictionaries, exist_ok = True)
@@ -122,14 +129,7 @@ def patch_embedding(args, logger):
         pickle.dump(embedding_dict, file)  # encode dict into Pickle
         logger.info("Done writing embedding_dict into pickle file")
 
-    with open(dictionaries + f"/knn_dict_{args.dataset_name}_{args.embedding_net}_{args.stain_type}.pkl", "wb") as file:
-        pickle.dump(knn_dict, file)  # encode dict into Pickle
-        logger.info("Done writing knn_dict into pickle file")
-
-    with open(dictionaries + f"/rag_dict_{args.dataset_name}_{args.embedding_net}_{args.stain_type}.pkl", "wb") as file:
-        pickle.dump(rag_dict, file)  # encode dict into Pickle
-        logger.info("Done writing rag_dict into pickle file")
-
-    with open(dictionaries + f"/krag_dict_{args.dataset_name}_{args.embedding_net}_{args.stain_type}.pkl", "wb") as file:
-        pickle.dump(krag_dict, file)  # encode dict into Pickle
-        logger.info("Done writing krag_dict into pickle file")
+    logger.info("Embedding done in {:.0f}m {:.0f}s"
+                .format(embedding_time // 60, embedding_time % 60))
+    logger.info("Embedding Profiling Results:")
+    embedding_profiler.report(is_training=False, is_testing=False)

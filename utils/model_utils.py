@@ -15,70 +15,13 @@ from utils.setup_utils import get_model_config
 from utils.plotting_functions_utils import plot_averaged_results
 from utils.plotting_functions_utils import plot_average_roc_curve, plot_average_pr_curve
 
-from models.KRAG_model import KRAG_Classifier
-from models.MUSTANG_model import MUSTANG_Classifier
-from models.patchGCN_model import PatchGCN
-from models.DeepGraphConv_model import DeepGraphConv
-from models.GTP_model import GTP_Classifier
-from models.TransMIL_model import TransMIL
-from models.CLAM_model import GatedAttention as CLAM
+from models.ABMIL_model import GatedAttention as ABMIL
 
 
 def process_model_output(args, output, loss_fn):
-    if args.model_name == 'KRAG':
-        logits, Y_prob, label = output
-        Y_hat = torch.argmax(Y_prob, dim=1)
-        loss = loss_fn(logits, label)
-        return logits, Y_prob, Y_hat, loss
-
-    elif args.model_name == 'MUSTANG':
-        logits, Y_prob, label = output
-        Y_hat = torch.argmax(Y_prob, dim=1)
-        loss = loss_fn(logits, label)
-        return logits, Y_prob, Y_hat, loss
-
-    elif args.model_name == 'CLAM':
+    if args.model_name == 'ABMIL':
         bag_weight = 0.7
-        logits, Y_prob, results_dir, label = output
-        Y_hat = torch.argmax(Y_prob, dim=1)
-        loss = loss_fn(logits, label)
-        instance_loss = results_dir['instance_loss']
-        total_loss = bag_weight * loss + (1 - bag_weight) * instance_loss
-        return logits, Y_prob, Y_hat, total_loss
-
-    elif args.model_name == 'PatchGCN':
         logits, Y_prob, label = output
-        Y_hat = torch.argmax(Y_prob, dim=1)
-        loss = loss_fn(logits, label)
-        return logits, Y_prob, Y_hat, loss
-
-    elif args.model_name == 'DeepGraphConv':
-        logits, Y_prob, results_dir, label = output
-        Y_hat = torch.argmax(Y_prob, dim=1)
-        loss = loss_fn(logits, label)
-        return logits, Y_prob, Y_hat, loss
-
-    elif args.model_name == 'TransMIL':
-        logits, Y_prob, results_dir, label = output
-        Y_hat = torch.argmax(Y_prob, dim=1)
-        loss = loss_fn(logits, label)
-        return logits, Y_prob, Y_hat, loss
-
-    elif args.model_name == 'GTP':
-        logits, Y_prob, results_dir, label = output
-        Y_hat = torch.argmax(Y_prob, dim=1)
-        loss = loss_fn(logits, label)
-        total_loss = loss + results_dir['mc1'] + results_dir['o1']
-        return logits, Y_prob, Y_hat, total_loss
-
-    elif args.model_name == 'HEAT':
-        logits, Y_prob, results_dir, label = output
-        Y_hat = torch.argmax(Y_prob, dim=1)
-        loss = loss_fn(logits, label)
-        return logits, Y_prob, Y_hat, loss
-
-    elif args.model_name == 'CAMIL':
-        logits, Y_prob, results_dir, label = output
         Y_hat = torch.argmax(Y_prob, dim=1)
         loss = loss_fn(logits, label)
         return logits, Y_prob, Y_hat, loss
@@ -90,17 +33,13 @@ def process_model_output(args, output, loss_fn):
 def load_data(args, results_dir):
     config = get_model_config(args)
     run_settings = (
-        f"{args.model_name}_{config['graph_mode']}_{config['convolution']}_PE_{config['encoding_size']}"
-        f"_{args.embedding_net}_{args.dataset_name}_{args.seed}_{config['heads']}_{config['pooling_ratio']}"
-        f"_{args.learning_rate}_{args.scheduler}_{args.stain_type}_L1_{args.l1_norm}")
+        f"{args.model_name}_{args.embedding_net}_{args.dataset_name}_"
+        f"{args.seed}_{config['heads']}_{args.learning_rate}_{args.scheduler}")
 
     checkpoints = os.path.join(results_dir, "checkpoints")
     os.makedirs(checkpoints, exist_ok = True)
 
     graph_dict_path = args.directory + f"/dictionaries/{config['graph_mode']}_dict_{args.dataset_name}"
-
-    if config['encoding_size'] > 0 and config['graph_mode'] == 'krag':
-        graph_dict_path += f"_positional_encoding_{config['encoding_size']}"
 
     graph_dict_path += f"_{args.embedding_net}_{args.stain_type}.pkl"
 
@@ -114,10 +53,11 @@ def load_data(args, results_dir):
     return run_settings, checkpoints, graph_dict, sss_folds
 
 
-def create_cross_validation_splits(args, patient_id, label, test_size=0.2, n_splits=5,
-                                   seed=42, dataset_name="dataset", directory=".", hard_test_set=False):
+def create_cross_validation_splits(args, patient_id, label, test_size=0.2, seed=42, dataset_name="dataset",
+                                   directory="."):
     """
     Create a n-fold cross-validation split with held-out test set.
+    :param n_splits:
     """
     patient_labels = pd.read_csv(os.path.join(args.directory, "patient_labels.csv"))
     extracted_patches = pd.read_csv(os.path.join(args.directory, f"extracted_patches_{args.slide_level}", "extracted_patches.csv"))
@@ -128,23 +68,14 @@ def create_cross_validation_splits(args, patient_id, label, test_size=0.2, n_spl
     # Drop duplicates to obtain unique patient IDs
     df_labels = df.drop_duplicates(subset=patient_id).reset_index(drop=True)
 
-    if dataset_name.upper() == "CAMELYON16":
-        # For CAMELYON16, use the split column to create test set
-        test_data = df_labels[df_labels['split'] == 'test']
-        train_val_data = df_labels[df_labels['split'] == 'train']
-    elif hard_test_set:
-        # For hard test set, use the Hard column to create test set
-        test_data = df_labels[df_labels['Hard']]
-        train_val_data = df_labels[~df_labels['Hard']]
-    else:
-        # For other datasets, create a held-out test set
-        sss_test = StratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
-        train_val_index, test_index = next(sss_test.split(df_labels[patient_id], df_labels[label]))
-        train_val_data = df_labels.iloc[train_val_index]
-        test_data = df_labels.iloc[test_index]
+    # For other datasets, create a held-out test set
+    sss_test = StratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
+    train_val_index, test_index = next(sss_test.split(df_labels[patient_id], df_labels[label]))
+    train_val_data = df_labels.iloc[train_val_index]
+    test_data = df_labels.iloc[test_index]
 
     # Create 5-fold cross-validation splits on the training/validation data
-    sss_cv = StratifiedShuffleSplit(n_splits=n_splits, test_size=1/n_splits, random_state=seed)
+    sss_cv = StratifiedShuffleSplit(n_splits=args.stratified_splits, test_size=args.val_fraction, random_state=seed)
 
     fold_dictionary = {}
 
@@ -234,51 +165,13 @@ def prepare_data_loaders(data_dict, sss_folds):
     return training_folds, validation_folds, testing_folds
 
 def initialise_model(args):
-    if args.model_name == 'KRAG':
-        model = KRAG_Classifier(in_features=args.embedding_vector_size,
-                                hidden_dim=args.hidden_dim,
-                                num_classes=args.n_classes,
-                                heads=args.heads,
-                                pooling_ratio=args.pooling_ratio,
-                                walk_length=args.encoding_size,
-                                conv_type=args.convolution,
-                                num_layers=args.num_layers)
-    elif args.model_name == 'MUSTANG':
-        model = MUSTANG_Classifier(args.embedding_vector_size,
-                                   edge_attr_dim=len(args.edge_types),
-                                   node_attr_dim=len(args.stain_types),
-                                   hidden_dim=args.hidden_dim,
-                                   num_classes=args.n_classes,
-                                   heads=args.heads,
-                                   pooling_ratio=args.pooling_ratio,
-                                   walk_length=args.encoding_size,
-                                   conv_type=args.convolution,
-                                   num_layers=args.num_layers,
-                                   embedding_dim=10)
-    elif args.model_name == 'CLAM':
-        model = CLAM(args.embedding_vector_size)
-    elif args.model_name == 'DeepGraphConv':
-        model = DeepGraphConv(num_features=args.embedding_vector_size,
-                              hidden_dim=args.hidden_dim,
-                              n_classes=args.n_classes)
-    elif args.model_name == 'PatchGCN':
-        model = PatchGCN(num_features=args.embedding_vector_size,
-                         hidden_dim=args.hidden_dim,
-                         n_classes=args.n_classes)
-    elif args.model_name == 'DeepGraphConv':
-        model = DeepGraphConv(num_features=args.embedding_vector_size,
-                     hidden_dim=args.hidden_dim,
-                     n_classes=args.n_classes)
-    elif args.model_name == 'GTP':
-        model = GTP_Classifier(n_class=args.n_classes,
-                               n_features=args.embedding_vector_size)
-    elif args.model_name == 'TransMIL':
-        model = TransMIL(n_classes=args.n_classes)
+    if args.model_name == 'ABMIL':
+        model = ABMIL(M=args.embedding_vector_size)
     else:
         raise ValueError(f"Unsupported model: {args.model_name}")
 
     loss_fn = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01)
+    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.L2_norm)
     lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[25, 50, 75], gamma=0.1)
 
     if torch.cuda.is_available():
@@ -306,32 +199,36 @@ def summarise_train_results(all_results, mean_best_acc, mean_best_AUC, results_d
 def summarise_test_results(all_results, results_dir, logger, args):
     accuracies = [r['test_accuracy'] for r in all_results]
     aucs = [r['test_auc'] for r in all_results]
+    precisions = [r['test_avg_precision'] for r in all_results]
 
     # Calculate averages and standard deviations
     avg_accuracy = np.mean(accuracies)
-    std_accuracy = np.std(accuracies)
+    sem_accuracy = np.std(accuracies) / np.sqrt(np.size(accuracies))
     avg_auc = np.mean(aucs)
-    std_auc = np.std(aucs)
+    sem_auc = np.std(aucs) / np.sqrt(np.size(aucs))
+    avg_precisions = np.mean(precisions)
+    sem_precisions = np.std(precisions) / np.sqrt(np.size(precisions))
 
     # Create summary dataframe
     summary_df = pd.DataFrame({
-        'test_accuracy': [avg_accuracy, std_accuracy],
-        'test_AUC': [avg_auc, std_auc]
-    }, index=['mean', 'std']).T
+        'test_accuracy': [avg_accuracy, sem_accuracy],
+        'test_AUC': [avg_auc, sem_auc],
+        'test_AP': [avg_precisions, sem_precisions]
+    }, index=['mean', 'SE']).T
 
     config = get_model_config(args)
 
     # Save summary to CSV
     run_settings = (
-        f"{args.model_name}_{config['graph_mode']}_{config['convolution']}_PE_{config['encoding_size']}"
-        f"_{args.embedding_net}_{args.dataset_name}_{args.seed}_{config['heads']}_{config['pooling_ratio']}"
-        f"_{args.learning_rate}_{args.scheduler}_{args.stain_type}_L1_{args.l1_norm}")
+        f"{args.model_name}_{args.embedding_net}_{args.dataset_name}_"
+        f"{args.seed}_{config['heads']}_{args.learning_rate}_{args.scheduler}")
 
     summary_path = f"{results_dir}/{run_settings}_test_summary_scores.csv"
     summary_df.to_csv(summary_path, index=True)
 
-    logger.info(f"Average Test Accuracy: {avg_accuracy:.4f} +/- {std_accuracy:.4f}")
-    logger.info(f"Average Test AUC: {avg_auc:.4f} +/- {std_auc:.4f}")
+    logger.info(f"Average Test Accuracy: {avg_accuracy:.4f} +/- {sem_accuracy:.4f}")
+    logger.info(f"Average Test AUC: {avg_auc:.4f} +/- {sem_auc:.4f}")
+    logger.info(f"Average AP: {avg_precisions:.4f} +/- {sem_precisions:.4f}")
 
     # Plot average curves
     plot_average_roc_curve(all_results, args.n_classes, results_dir)
@@ -352,30 +249,3 @@ def minority_sampler(train_graph_dict):
                                                              num_samples=len(samples_weight), replacement=True)
 
     return sampler
-
-def l1_regularization(model, l1_norm):
-    weights = sum(torch.abs(p).sum() for p in model.parameters())
-    return weights * l1_norm
-
-def randomly_shuffle_graph(data, seed=None):
-    # Set the random seed if provided
-    if seed is not None:
-        torch.manual_seed(seed)
-
-    # Randomly shuffle the node features
-    shuffled_features = data.x[torch.randperm(data.num_nodes)]
-    shuffled_rw = data.random_walk_pe[torch.randperm(data.num_nodes)]
-
-    # Randomly shuffle the edge index
-    edge_index = data.edge_index
-    num_edges = edge_index.size(1)
-    shuffled_edge_index = edge_index[:, torch.randperm(num_edges)]
-
-    # Create a new Data object with the shuffled node features and edge index
-    shuffled_data = Data(
-        x=shuffled_features,
-        edge_index=shuffled_edge_index,
-        random_walk_pe=shuffled_rw
-    )
-
-    return shuffled_data
