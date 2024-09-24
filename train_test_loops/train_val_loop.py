@@ -25,7 +25,7 @@ def train_val_loop(args, model, train_loader, val_loader, loss_fn, optimizer, re
     best_val_acc = 0.
     best_val_AUC = 0.
     best_val_loss = float('inf')
-    patience = 2
+    patience = 15
     patience_counter = 0
     improvement_threshold = 0.001
 
