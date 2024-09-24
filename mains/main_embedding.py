@@ -12,8 +12,8 @@ from utils.profiling_utils import embedding_profiler
 from utils.embedding_utils import create_embedding
 from utils.dataloaders_utils import Loaders
 
-from models.embedding_models import VGG_embedding, resnet18_embedding, resnet50_embedding, convNext
-from models.embedding_models import contrastive_resnet18, CTransPath_embedding
+from models.embedding_models import VGG_embedding, resnet18_embedding, resnet50_embedding, convNext_embedding, ViT_embedding
+from models.embedding_models import ssl_resnet18_embedding, ssl_resnet50_embedding, CTransPath_embedding, Lunit_embedding
 from models.embedding_models import GigaPath_embedding, UNI_embedding, BiOptimus_embedding, Phikon_embedding
 
 # Set environment variables
@@ -72,25 +72,28 @@ def patch_embedding(args, logger):
     embedding_profiler.reset_gpu_memory()
     embedding_profiler.update_peak_memory()
 
-    if args.embedding_net == 'resnet18':
+    if args.embedding_net == 'vgg16':
+        # Load weights for vgg16
+        embedding_net = VGG_embedding(embedding_vector_size=args.embedding_vector_size)
+    elif args.embedding_net == 'resnet18':
         # Load weights for resnet18
         embedding_net = resnet18_embedding(embedding_vector_size=args.embedding_vector_size)
-    if args.embedding_net == 'ssl_resnet18':
-        # Load weights for pretrained resnet18
-        weight_path = os.path.join(args.embedding_weights, "Ciga", "tenpercent_resnet18.pt")
-        embedding_net = contrastive_resnet18(weight_path, embedding_vector_size=args.embedding_vector_size)
     elif args.embedding_net == 'resnet50':
         # Load weights for resnet 50
         embedding_net = resnet50_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'ssl_resnet50':
-        # Load weights for resnet 50
-        embedding_net = resnet50_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'vgg16':
-        # Load weights for vgg16
-        embedding_net = VGG_embedding(embedding_vector_size=args.embedding_vector_size)
     elif args.embedding_net == 'convnext':
         # Load weights for convnext
-        embedding_net = convNext(embedding_vector_size=args.embedding_vector_size)
+        embedding_net = convNext_embedding(embedding_vector_size=args.embedding_vector_size)
+    elif args.embedding_net == 'ViT':
+        # Load weights for Vision Transformer
+        embedding_net = ViT_embedding(embedding_vector_size=args.embedding_vector_size)
+    elif args.embedding_net == 'ssl_resnet18':
+        # Load weights for pretrained resnet18
+        weight_path = os.path.join(args.embedding_weights, "Ciga", "tenpercent_resnet18.pt")
+        embedding_net = ssl_resnet18_embedding(weight_path, embedding_vector_size=args.embedding_vector_size)
+    elif args.embedding_net == 'ssl_resnet50':
+        # Load weights for resnet 50
+        embedding_net = ssl_resnet50_embedding(embedding_vector_size=args.embedding_vector_size)
     elif args.embedding_net == 'CTransPath':
         # Load weights for CTransPath
         weight_path = os.path.join(args.embedding_weights, "CTransPath", "ctranspath.pth")

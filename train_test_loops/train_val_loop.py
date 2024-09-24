@@ -5,6 +5,8 @@ from collections import defaultdict
 import numpy as np
 from sklearn.metrics import roc_auc_score, classification_report, confusion_matrix
 from sklearn.preprocessing import label_binarize
+from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, classification_report
+from sklearn.metrics import average_precision_score
 
 import torch
 
@@ -22,13 +24,17 @@ def train_val_loop(args, model, train_loader, val_loader, loss_fn, optimizer, re
     since = time.time()
     best_val_acc = 0.
     best_val_AUC = 0.
+    best_val_loss = float('inf')
+    patience = 2
+    patience_counter = 0
+    improvement_threshold = 0.001
 
     best_model_weights = os.path.join(checkpoint_path, "best_val_models")
     os.makedirs(best_model_weights, exist_ok=True)
 
     results_dict = {
         'train_loss': [], 'train_accuracy': [],
-        'val_loss': [], 'val_accuracy': [], 'val_auc': []
+        'val_loss': [], 'val_accuracy': [], 'val_auc': [], "val_precision": []
     }
 
     for epoch in range(num_epochs):
@@ -41,7 +47,7 @@ def train_val_loop(args, model, train_loader, val_loader, loss_fn, optimizer, re
                                                                             loss_fn,
                                                                             optimizer,
                                                                             n_classes)
-        val_loss, val_accuracy, val_auc, conf_matrix, class_report = eval_loop(args,
+        val_loss, val_accuracy, val_auc, val_pr, conf_matrix, class_report = eval_loop(args,
                                                                                model,
                                                                                val_loader,
                                                                                loss_fn,
@@ -54,6 +60,7 @@ def train_val_loop(args, model, train_loader, val_loader, loss_fn, optimizer, re
         results_dict['val_loss'].append(val_loss)
         results_dict['val_accuracy'].append(val_accuracy)
         results_dict['val_auc'].append(val_auc)
+        results_dict['val_precision'].append(val_pr)
 
         logger.info(f"\n{'=' * 25} Split {fold} {'=' * 25}")
         logger.info(f"Epoch {epoch + 1}/{num_epochs}")
@@ -65,22 +72,53 @@ def train_val_loop(args, model, train_loader, val_loader, loss_fn, optimizer, re
         logger.info(f"\n{conf_matrix}")
         logger.info(f"\n{class_report}")
 
-        if val_accuracy >= best_val_acc:
+        improved = False
+        if val_loss < best_val_loss - improvement_threshold:
+            best_val_loss = val_loss
+            improved = True
+            if checkpoint:
+                torch.save(model.state_dict(),
+                           os.path.join(best_model_weights, f"checkpoint_fold_{fold}_loss.pth"))
+
+        if val_accuracy > best_val_acc + improvement_threshold:
             best_val_acc = val_accuracy
-
+            improved = True
             if checkpoint:
-                checkpoint_weights = checkpoint_path + "/checkpoint_fold_" + str(fold) + "_epoch_" + str(epoch) + ".pth"
-                torch.save(model.state_dict(), checkpoint_weights)
-                torch.save(model.state_dict(), best_model_weights + f"/checkpoint_fold_{fold}_accuracy.pth")
+                torch.save(model.state_dict(),
+                           os.path.join(best_model_weights, f"checkpoint_fold_{fold}_accuracy.pth"))
 
-
-        if val_auc >= best_val_AUC:
+        if val_auc > best_val_AUC + improvement_threshold:
             best_val_AUC = val_auc
-
+            improved = True
             if checkpoint:
-                checkpoint_weights = checkpoint_path + "/checkpoint_fold_" + str(fold) + "_epoch_" + str(epoch) + ".pth"
-                torch.save(model.state_dict(), checkpoint_weights)
-                torch.save(model.state_dict(), best_model_weights + f"/checkpoint_fold_{fold}_auc.pth")
+                torch.save(model.state_dict(), os.path.join(best_model_weights, f"checkpoint_fold_{fold}_auc.pth"))
+
+        if improved:
+            patience_counter = 0
+        else:
+            patience_counter += 1
+
+        # Early stopping check
+        if patience_counter >= patience:
+            logger.info(f"Early stopping triggered after {epoch + 1} epochs")
+            break
+
+        # if val_accuracy >= best_val_acc:
+        #     best_val_acc = val_accuracy
+        #
+        #     if checkpoint:
+        #         checkpoint_weights = checkpoint_path + "/checkpoint_fold_" + str(fold) + "_epoch_" + str(epoch) + ".pth"
+        #         torch.save(model.state_dict(), checkpoint_weights)
+        #         torch.save(model.state_dict(), best_model_weights + f"/checkpoint_fold_{fold}_accuracy.pth")
+        #
+        #
+        # if val_auc >= best_val_AUC:
+        #     best_val_AUC = val_auc
+        #
+        #     if checkpoint:
+        #         checkpoint_weights = checkpoint_path + "/checkpoint_fold_" + str(fold) + "_epoch_" + str(epoch) + ".pth"
+        #         torch.save(model.state_dict(), checkpoint_weights)
+        #         torch.save(model.state_dict(), best_model_weights + f"/checkpoint_fold_{fold}_auc.pth")
 
     plot_training_results(results_dict, fold, results_dir)
 
@@ -170,13 +208,18 @@ def eval_loop(args, model, val_loader, loss_fn, n_classes):
 
     if n_classes == 2:
         val_auc = roc_auc_score(all_labels, all_probs[:, 1])
+        val_precision = average_precision_score(all_labels, all_probs[:, 1])
     else:
         binary_labels = label_binarize(all_labels, classes=range(n_classes))
         val_auc = roc_auc_score(binary_labels, all_probs, average='macro', multi_class='ovr')
+        all_preds = np.argmax(all_probs, axis=1)
+        val_precision = average_precision_score(all_labels,
+                                                label_binarize(all_preds, classes=range(args.n_classes)),
+                                                average='macro')
 
     predicted_labels = np.argmax(all_probs, axis=1)
     conf_matrix = confusion_matrix(all_labels, np.argmax(all_probs, axis=1))
     class_report = classification_report(all_labels, predicted_labels, zero_division=0)
 
-    return val_loss, val_accuracy, val_auc, conf_matrix, class_report
+    return val_loss, val_accuracy, val_auc, val_precision, conf_matrix, class_report
 

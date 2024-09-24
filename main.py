@@ -31,8 +31,10 @@ parser.add_argument("--label_dict", type=parse_dict, default="{'0': 'Pauci-Immun
 parser.add_argument("--patient_id", type=str, default='Patient_ID', help="Name of column containing the patient ID")
 parser.add_argument("--embedding_vector_size", type=int, default=1024, help="Embedding vector size")
 parser.add_argument("--stratified_splits", type=int, default=5, help="Number of random stratified splits")
-parser.add_argument("--embedding_net", type=str, default="UNI",
-                    choices=['resnet18', 'ssl_resnet18', 'vgg16', 'convnext', 'resnet50', "CTransPath", 'UNI', 'GigaPath', 'Phikon', 'BiOptimus'], help="feature extraction network used")
+parser.add_argument("--embedding_net", type=str, default="resnet50",
+                    choices=['vgg16', 'resnet18', 'resnet50', 'convnext', 'ViT',
+                             'ssl_resnet18', 'ssl_resnet50', 'Lunit', 'CTransPath',
+                                'UNI', 'GigaPath', 'Phikon', 'BiOptimus'], help="feature extraction network used")
 parser.add_argument("--embedding_weights", type=str, default=r"C:/Users/Amaya/Documents/PhD/Data/WSI_foundation/", help="Path to embedding weights")
 parser.add_argument("--train_fraction", type=float, default=0.8, help="Train fraction")
 parser.add_argument("--val_fraction", type=float, default=0.20, help="Validation fraction")
