@@ -1,21 +1,19 @@
-
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 
-class GatedAttention(nn.Module):
+class ABMIL(nn.Module):
     """
     https://github.com/AMLab-Amsterdam/AttentionDeepMIL/
     """
-    def __init__(self, M=1024, L=256, ATTENTION_BRANCHES=1, n_classes=2):
+    def __init__(self, embedding_size, hidden_dim, attention_heads=1, n_classes=2):
 
-        super(GatedAttention, self).__init__()
-        self.M = M
-        self.L = L
-        self.ATTENTION_BRANCHES = ATTENTION_BRANCHES
+        super(ABMIL, self).__init__()
+        self.M = embedding_size
+        self.L = hidden_dim
+        self.ATTENTION_BRANCHES = attention_heads
 
         self.attention_V = nn.Sequential(
             nn.Linear(self.M, self.L), # matrix V
@@ -27,7 +25,7 @@ class GatedAttention(nn.Module):
             nn.Sigmoid()
         )
 
-        self.attention_w = nn.Linear(self.L, self.ATTENTION_BRANCHES) # matrix w (or vector w if self.ATTENTION_BRANCHES==1)
+        self.attention_w = nn.Linear(self.L, self.ATTENTION_BRANCHES) # matrix w (or vector w if self.attention_heads==1)
 
         self.classifier = nn.Sequential(
             nn.Linear(self.M*self.ATTENTION_BRANCHES, n_classes)
@@ -47,4 +45,4 @@ class GatedAttention(nn.Module):
         logits = self.classifier(Z)
         Y_prob = F.softmax(logits, dim=1)
 
-        return logits, Y_prob, label
+        return logits, Y_prob, A, label

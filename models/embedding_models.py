@@ -17,7 +17,7 @@ from transformers import AutoModel
 
 class VGG_embedding(nn.Module):
 
-    def __init__(self, embedding_vector_size):
+    def __init__(self):
         super(VGG_embedding, self).__init__()
 
         embedding_net = vgg16_bn(weights=VGG16_BN_Weights.IMAGENET1K_V1)
@@ -26,121 +26,101 @@ class VGG_embedding(nn.Module):
         for param in embedding_net.parameters():
             param.require_grad = False
 
-        # Newly created modules have require_grad=True by default
-        num_features = embedding_net.classifier[6].in_features
-        features = list(embedding_net.classifier.children())[:-1]  # Remove last layer
-        features.extend([nn.Linear(num_features, embedding_vector_size)])
-        embedding_net.classifier = nn.Sequential(*features)  # Replace the model classifier
-        self.vgg_embedding = nn.Sequential(embedding_net)
+        self.features = nn.Sequential(embedding_net.features, embedding_net.avgpool, nn.Flatten(),
+                                      *list(embedding_net.classifier.children())[:-1])
 
     def forward(self, x):
-        output = self.vgg_embedding(x)
-        output = output.view(output.size()[0], -1)
-
-        return output
+        return self.features(x)
 
 
-class convNext_embedding(nn.Module):
+class ConvNext_embedding(nn.Module):
+    def __init__(self):
+        super(ConvNext_embedding, self).__init__()
+        model = convnext_base(weights=ConvNeXt_Base_Weights.IMAGENET1K_V1)
 
-    def __init__(self, embedding_vector_size):
-        super(convNext_embedding, self).__init__()
-
-        model = convnext_base(
-            weights=ConvNeXt_Base_Weights.IMAGENET1K_V1)
-
+        # Freeze all parameters
         for param in model.parameters():
-            param.require_grad = False
+            param.requires_grad = False
 
-        num_features = model.classifier[2].in_features
-        model.classifier[2] = nn.Linear(num_features, embedding_vector_size)
-        self.model = nn.Sequential(model)
+        # Use all layers except the final classifier
+        self.features = nn.Sequential(
+            model.features,
+            model.avgpool,
+            nn.Flatten(1)  # Flatten all dimensions except batch
+        )
 
     def forward(self, x):
-        output = self.model(x)
-        output = output.view(output.size()[0], -1)
-
-        return output
+        return self.features(x)
 
 
-class resnet18_embedding(nn.Module):
-
-    def __init__(self, embedding_vector_size):
-        super(resnet18_embedding, self).__init__()
-
+class ResNet18_embedding(nn.Module):
+    def __init__(self):
+        super(ResNet18_embedding, self).__init__()
         model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
 
+        # Freeze all parameters
         for param in model.parameters():
             param.requires_grad = False
 
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, embedding_vector_size)
-        self.model = nn.Sequential(model)
+        # Use all layers except the final classifier
+        self.features = nn.Sequential(
+            *list(model.children())[:-1],
+            nn.Flatten(1)
+        )
 
     def forward(self, x):
-        output = self.model(x)
-        output = output.view(output.size()[0], -1)
-
-        return output
+        return self.features(x)
 
 
-class ssl_resnet18_embedding(nn.Module):
-
-    def __init__(self, weight_path, embedding_vector_size):
-        super(ssl_resnet18_embedding, self).__init__()
-
-        model = resnet18(weights=None)
-        model.load_state_dict(torch.load(weight_path), strict=True)
-
-        for param in model.parameters():
-            param.requires_grad = False
-
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, embedding_vector_size)
-        self.model = nn.Sequential(model)
-
-    def forward(self, x):
-        output = self.model(x)
-        output = output.view(output.size()[0], -1)
-
-        return output
-
-
-class resnet50_embedding(nn.Module):
-
-    def __init__(self, embedding_vector_size):
-        super(resnet50_embedding, self).__init__()
-
+class ResNet50_embedding(nn.Module):
+    def __init__(self):
+        super(ResNet50_embedding, self).__init__()
         model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
 
+        # Freeze all parameters
         for param in model.parameters():
             param.requires_grad = False
 
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, embedding_vector_size)
-        self.model = nn.Sequential(model)
+        self.features = nn.Sequential(
+            *list(model.children())[:-1],
+            nn.Flatten(1)
+        )
 
     def forward(self, x):
-        output = self.model(x)
-        output = output.view(output.size()[0], -1)
-        return output
+        return self.features(x)
+
 
 class ViT_embedding(nn.Module):
     """
     https://huggingface.co/google/vit-base-patch16-224
     """
-
-    def __init__(self, embedding_vector_size):
+    def __init__(self):
         super(ViT_embedding, self).__init__()
+        self.features = timm.create_model("vit_base_patch16_224", pretrained=True)
 
-        self.model = timm.create_model("vit_base_patch16_224", pretrained=True)
-        self.model.head = nn.Identity()
-        self.final_layer = nn.Linear(768, embedding_vector_size)
+        # Replace the head with Identity to get the features before the final classification layer
+        self.features.head = nn.Identity()
+
+        # Freeze all parameters
+        for param in self.features.parameters():
+            param.requires_grad = False
 
     def forward(self, x):
-        x = self.model(x)
-        output = self.final_layer(x)
+        return self.features(x)
 
-        return output
+
+class ssl_resnet18_embedding(nn.Module):
+
+    def __init__(self, weight_path):
+        super(ssl_resnet18_embedding, self).__init__()
+
+        model = resnet18(weights=None)
+        model.load_state_dict(torch.load(weight_path), strict=True)
+        model.fc = torch.nn.Sequential()
+        self.features = model
+
+    def forward(self, x):
+        return self.features(x)
 
 
 class GigaPath_embedding(nn.Module):
@@ -148,17 +128,13 @@ class GigaPath_embedding(nn.Module):
     https://huggingface.co/prov-gigapath/prov-gigapath
     """
 
-    def __init__(self, embedding_vector_size):
+    def __init__(self):
         super(GigaPath_embedding, self).__init__()
 
-        self.model = timm.create_model("hf_hub:prov-gigapath/prov-gigapath", pretrained=True)
-        self.final_layer = nn.Linear(1536, embedding_vector_size)
+        self.features = timm.create_model("hf_hub:prov-gigapath/prov-gigapath", pretrained=True)
 
     def forward(self, x):
-        x = self.model(x)
-        output = self.final_layer(x)
-
-        return output
+        return self.features(x)
 
 
 class UNI_embedding(nn.Module):
@@ -166,16 +142,14 @@ class UNI_embedding(nn.Module):
     https://huggingface.co/MahmoodLab/UNI
     """
 
-    def __init__(self, embedding_vector_size):
+    def __init__(self):
         super(UNI_embedding, self).__init__()
 
-        self.model = timm.create_model("hf-hub:MahmoodLab/uni", pretrained=True, init_values=1e-5,
+        self.features = timm.create_model("hf-hub:MahmoodLab/uni", pretrained=True, init_values=1e-5,
                                        dynamic_img_size=True)
 
     def forward(self, x):
-        output = self.model(x)
-
-        return output
+        return self.features(x)
 
 
 class BiOptimus_embedding(nn.Module):
@@ -183,18 +157,14 @@ class BiOptimus_embedding(nn.Module):
     https://huggingface.co/bioptimus/H-optimus-0
     """
 
-    def __init__(self, embedding_vector_size):
+    def __init__(self):
         super(BiOptimus_embedding, self).__init__()
 
-        self.model = timm.create_model("hf-hub:bioptimus/H-optimus-0", pretrained=True, init_values=1e-5,
+        self.features = timm.create_model("hf-hub:bioptimus/H-optimus-0", pretrained=True, init_values=1e-5,
                                        dynamic_img_size=False)
-        self.final_layer = nn.Linear(1536, embedding_vector_size)
 
     def forward(self, x):
-        x = self.model(x)
-        output = self.final_layer(x)
-
-        return output
+        return self.features(x)
 
 
 class Phikon_embedding(nn.Module):
@@ -202,16 +172,15 @@ class Phikon_embedding(nn.Module):
     https://huggingface.co/owkin/phikon-v2
     """
 
-    def __init__(self, embedding_vector_size):
+    def __init__(self):
         super(Phikon_embedding, self).__init__()
 
         self.model = AutoModel.from_pretrained("owkin/phikon-v2")
 
     def forward(self, x):
         x = self.model(x)
-        output = x.last_hidden_state[:, 0, :]
-
-        return output
+        features = x.last_hidden_state[:, 0, :]
+        return features
 
 
 # CTransPath
@@ -267,7 +236,7 @@ class CTransPath_embedding(nn.Module):
     To avoid conflicts with the newer version of timm, the custom version of timm is imported as timm_old only for this model.
     """
 
-    def __init__(self, weight_path, embedding_vector_size):
+    def __init__(self, weight_path):
         super(CTransPath_embedding, self).__init__()
 
         import warnings
@@ -284,30 +253,23 @@ class CTransPath_embedding(nn.Module):
         self.model = timm_old.create_model('swin_tiny_patch4_window7_224', embed_layer=ConvStem, pretrained=False)
         self.model.head = nn.Identity()
         self.model.load_state_dict(torch.load(weight_path)['model'], strict=True)
-        self.final_layer = nn.Linear(768, embedding_vector_size)
-
 
     def forward(self, x):
-        x = self.model(x)
-        output = self.final_layer(x)
-
-        return output
+        features = self.model(x)
+        return features
 
 
 class Lunit_embedding(nn.Module):
     """
     https://github.com/lunit-io/benchmark-ssl-pathology
     """
-    def __init__(self, embedding_vector_size):
+    def __init__(self):
         super(Lunit_embedding, self).__init__()
 
-        self.model = self.vit_small(pretrained=True, progress=False, key="DINO_p16", patch_size=16)
-        self.final_layer = nn.Linear(384, embedding_vector_size)
+        self.features = self.vit_small(pretrained=True, progress=False, key="DINO_p16", patch_size=16)
 
     def forward(self, x):
-        x = self.model(x)
-        output = self.final_layer(x)
-        return output
+        return self.features(x)
 
     def vit_small(self, pretrained, progress, key, **kwargs):
         patch_size = kwargs.get("patch_size", 16)
@@ -355,16 +317,13 @@ class ResNetTrunk(ResNet):
         return x
 
 class ssl_resnet50_embedding(nn.Module):
-    def __init__(self, embedding_vector_size):
+    def __init__(self):
         super(ssl_resnet50_embedding, self).__init__()
 
-        self.model = self.resnet50(pretrained=True, progress=False, key="BT")
-        self.final_layer = nn.Linear(2048, embedding_vector_size)
+        self.features = self.resnet50(pretrained=True, progress=False, key="BT")
 
     def forward(self, x):
-        x = self.model(x)
-        output = self.final_layer(x)
-        return output
+        return self.features(x)
 
 
     def get_pretrained_url(self, key):

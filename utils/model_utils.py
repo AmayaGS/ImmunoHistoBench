@@ -11,37 +11,31 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from utils.setup_utils import get_model_config
-# from utils.plotting_functions_utils import plot_averaged_results
 from utils.plotting_functions_utils import plot_average_roc_curve, plot_average_pr_curve
 
-from models.ABMIL_model import GatedAttention as ABMIL
+from models.ABMIL_model import ABMIL
 
 
 def process_model_output(args, output, loss_fn):
     if args.model_name == 'ABMIL':
-        bag_weight = 0.7
-        logits, Y_prob, label = output
+        logits, Y_prob, attention, label = output
         Y_hat = torch.argmax(Y_prob, dim=1)
         loss = loss_fn(logits, label)
-        return logits, Y_prob, Y_hat, loss
+        return logits, Y_prob, Y_hat, loss, attention
 
     else:
-
         raise ValueError(f"Unsupported model: {args.model_name}")
 
 def load_data(args, results_dir):
-    config = get_model_config(args)
     run_settings = (
         f"{args.model_name}_{args.embedding_net}_{args.dataset_name}_"
-        f"{args.seed}_{config['heads']}_{args.learning_rate}_{args.scheduler}")
+        f"{args.seed}_{args.learning_rate}")
 
     checkpoints = os.path.join(results_dir, "checkpoints")
     os.makedirs(checkpoints, exist_ok = True)
 
-    graph_dict_path = args.directory + f"/dictionaries/{config['graph_mode']}_dict_{args.dataset_name}"
-
-    graph_dict_path += f"_{args.embedding_net}_{args.stain_type}.pkl"
+    graph_dict_path = args.directory + (f"/dictionaries/embedding_dict_{args.dataset_name}"
+                                        f"_{args.embedding_net}_{args.stain_used}.pkl")
 
     with open(graph_dict_path, "rb") as file:
         graph_dict = pickle.load(file)
@@ -166,7 +160,7 @@ def prepare_data_loaders(data_dict, sss_folds):
 
 def initialise_model(args):
     if args.model_name == 'ABMIL':
-        model = ABMIL(M=args.embedding_vector_size)
+        model = ABMIL(embedding_size=args.embedding_vector_size, hidden_dim=args.hidden_dim, n_classes=args.n_classes)
     else:
         raise ValueError(f"Unsupported model: {args.model_name}")
 
@@ -228,12 +222,10 @@ def summarise_test_results(all_results, results_dir, logger, args):
         'test_precision': [avg_macro_precision, sem_macro_precision]
     }, index=['mean', 'SE']).T
 
-    config = get_model_config(args)
-
     # Save summary to CSV
     run_settings = (
         f"{args.model_name}_{args.embedding_net}_{args.dataset_name}_"
-        f"{args.seed}_{config['heads']}_{args.learning_rate}_{args.scheduler}")
+        f"{args.seed}_{args.learning_rate}")
 
     summary_path = f"{results_dir}/{run_settings}_test_summary_scores.csv"
     summary_df.to_csv(summary_path, index=True)

@@ -4,93 +4,96 @@ import argparse
 from mains.main_tissue_segmentation import tissue_segmentation
 from mains.main_embedding import patch_embedding
 from mains.main_train_test import train_model, test_model
-from utils.setup_utils import setup_results_and_logging, parse_dict
+from mains.main_heatmaps import heatmap_generation
+from utils.setup_utils import setup_results_and_logging
 from utils.model_utils import create_cross_validation_splits
+from utils.setup_utils import load_config
 
-parser = argparse.ArgumentParser(description="Input arguments for applying KRAG to Whole Slide Images")
 
-# Input arguments for tissue segmentation and patching of Whole Slide Images
-parser.add_argument('--input_directory', type=str, default= "path/to/slides", help='Input data directory')
-parser.add_argument('--directory', type=str, default= "path/to/output/directory", help='Location of patient labels/extracted patches. Embeddings dictionaries will be kept here')
-parser.add_argument('--dataset_name', type=str, default='RA', choices=['RA', 'Sjogren'], help="Dataset name")
-parser.add_argument('--patch_size', type=int, default=224, help='Patch size (default: 224)')
-parser.add_argument('--overlap', type=int, default=0, help='Overlap (default: 0)')
-parser.add_argument('--coverage', type=float, default=0.4, help='Coverage (default: 0.3)')
-parser.add_argument('--slide_level', type=int, default=2, help='Slide level (default: 1)')
-parser.add_argument('--mask_level', type=int, default=2, help='Slide level (default: 2)')
-parser.add_argument('--unet', action='store_true', help='WIP, do not use yet - Calling this parameter will result in using UNet segmentation, rather than adaptive binary thresholding')
-parser.add_argument('--unet_weights', type=str, default= r"C:/Users/Amaya/Documents/PhD/Data/UNet_512_1.pth.tar", help='Path to model checkpoints')
-parser.add_argument('--patch_batch_size', type=int, default=10, help='Batch size (default: 10)')
-parser.add_argument('--patient_ID_parsing', type=str, default='img.split("_")[0]', help='String parsing to obtain patient ID from image filename')
-parser.add_argument('--stain_parsing', type=str, default='img.split("_")[1]', help='String parsing to obtain stain type from image filename')
-parser.add_argument('--seed', type=int, default=42, help="Random seed")
+def parse_arguments():
 
-#Feature vector extraction of the WSI patches and creation of embedding & graph dictionaries [rag, knn or krag].
-parser.add_argument("--label", type=str, default='label', help="Name of the target label in the metadata file")
-parser.add_argument("--label_dict", type=parse_dict, default="{'0': 'Pauci-Immune', '1': 'Lymphoid/Myeloid'}", help="Dictionary mapping int labels to string labels")
-parser.add_argument("--patient_id", type=str, default='Patient_ID', help="Name of column containing the patient ID")
-parser.add_argument("--embedding_vector_size", type=int, default=1024, help="Embedding vector size")
-parser.add_argument("--stratified_splits", type=int, default=5, help="Number of random stratified splits")
-parser.add_argument("--embedding_net", type=str, default="resnet50",
-                    choices=['vgg16', 'resnet18', 'resnet50', 'convnext', 'ViT',
-                             'ssl_resnet18', 'ssl_resnet50', 'Lunit', 'CTransPath',
-                                'UNI', 'GigaPath', 'Phikon', 'BiOptimus'], help="feature extraction network used")
-parser.add_argument("--embedding_weights", type=str, default=r"C:/Users/Amaya/Documents/PhD/Data/WSI_foundation/", help="Path to embedding weights")
-parser.add_argument("--train_fraction", type=float, default=0.8, help="Train fraction")
-parser.add_argument("--val_fraction", type=float, default=0.20, help="Validation fraction")
-parser.add_argument("--graph_mode", type=str, default="krag", choices=['knn', 'rag', 'krag'], help="Change type of graph used for training here")
-parser.add_argument("--n_classes", type=int, default=2, help="Number of classes")
-parser.add_argument("--slide_batch", type=int, default=1, help="Slide batch size - default 1")
-parser.add_argument("--num_workers", type=int, default=0, help="Number of workers for data loading")
-parser.add_argument('--stain_type', type=str, default='all', help='Type of stain used.')
+    # Step 1: Parse only the config file path
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, default='RA_config.yaml', help='Path to the config file')
+    args, remaining_argv = parser.parse_known_args()
 
-# Add arguments for stain_types and edge_types
-parser.add_argument('--stain_types', type=parse_dict, default="{'NA': 0, 'H&E': 1, 'CD68': 2, 'CD138': 3, 'CD20': 4}", help='Dictionary mapping stain types to integers')
-parser.add_argument('--stain_colors', type=parse_dict, default="{'H&E': 'tab:pink', 'CD68': 'tab:brown', 'CD20': 'tab:blue', 'CD138': 'tab:orange'}", help='Dictionary mapping stain types to colors')
+    # Load the config file
+    config = load_config(args.config)
 
-#pre-compute Random Walk positional encoding on the graph
-parser.add_argument("--encoding_size", type=int, default=20, help="Size Random Walk positional encoding")
+    # Step 2: Parse all arguments, using config for defaults
+    parser = argparse.ArgumentParser()
 
-#self-attention graph multiple instance learning for Whole Slide Image set classification at the patient level"
-parser.add_argument("--hidden_dim", type=int, default=256, help="Size of hidden network dimension")
-parser.add_argument("--convolution", type=str, default="GAT", choices=['GAT', 'GCN', 'GIN', 'GraphSAGE'], help="Change type of graph convolution used")
-parser.add_argument("--learning_rate", type=float, default=0.0001, help="Learning rate")
-parser.add_argument('--attention', action='store_true', help='This parameter will result in using an attention mechanism after the graph pooling layer')
-parser.add_argument("--pooling_ratio", type=float, default=0.7, help="Pooling ratio")
-parser.add_argument("--heads", type=int, default=2, help="Number of GAT heads")
-parser.add_argument("--num_epochs", type=int, default=10, help="Number of training epochs")
-parser.add_argument("--batch_size", type=int, default=1, help="Graph batch size for training")
-parser.add_argument("--scheduler", type=str, default=1, help="learning rate schedule")
-parser.add_argument("--checkpoint", action="store_true", default=True, help="Enables checkpointing of GNN weights.")
-parser.add_argument('--L2_norm', type=float, default=10e-5, help='weight decay')
-parser.add_argument("--l1_norm", type=int, default=0, help="L1-norm to regularise loss function")
-parser.add_argument("--hard_test", type=bool, default=False, help="If called, will test on the hardest test set")
+    # Paths
+    parser.add_argument('--input_directory', type=str, default=config['paths']['input_directory'], help='Input data directory')
+    parser.add_argument('--directory', type=str, default=config['paths']['output_directory'], help='Location of patient labels/extracted patches. Embeddings dictionaries will be kept here')
+    parser.add_argument('--embedding_weights', type=str, default=config['paths']['embedding_weights'], help="Path to embedding weights")
+    parser.add_argument('--path_to_patches', type=str, default=config['paths']['path_to_patches'], help="Path to extracted patches")
 
-# visualisation of heatmaps & graph layers
-parser.add_argument("--path_to_patches", type=str, default="/extracted_patches/patches", help="Location of patches")
-parser.add_argument("--test_fold", type=int, default=0, help="Test fold to generate heatmaps for")
-parser.add_argument("--test_ids", nargs="+", help="Specific test IDs to generate heatmaps for")
-parser.add_argument("--specific_ids", action="store_true", help="Generate heatmaps for specific test IDs")
-parser.add_argument("--per_layer", action='store_true', help="If called, will create heatmaps for each layer of the GNN.")
+    # Dataset configurations
+    parser.add_argument('--dataset_name', type=str, default=config['dataset']['name'], choices=['RA', 'Sjogren'], help="Dataset name")
+    parser.add_argument('--patch_size', type=int, default=config['dataset']['patch_size'], help='Patch size')
+    parser.add_argument('--overlap', type=int, default=config['dataset']['overlap'], help='Overlap')
+    parser.add_argument('--coverage', type=float, default=config['dataset']['coverage'], help='Coverage')
+    parser.add_argument('--slide_level', type=int, default=config['dataset']['slide_level'], help='Slide level')
+    parser.add_argument('--mask_level', type=int, default=config['dataset']['mask_level'], help='Mask level')
+    parser.add_argument('--patch_batch_size', type=int, default=config['dataset']['patch_batch_size'], help='Batch size for patching')
+    parser.add_argument('--train_fraction', type=float, default=config['dataset']['train_fraction'], help="Train fraction")
+    parser.add_argument('--val_fraction', type=float, default=config['dataset']['val_fraction'], help="Validation fraction")
+    parser.add_argument('--stain_used', type=str, default=config['dataset']['stain_used'], help='Type of stain used.')
 
-# benchmarking against other models
-parser.add_argument("--model_name", type=str, default='ABMIL')
+    # Parsing configurations
+    parser.add_argument('--patient_ID_parsing', type=str, default=config['parsing']['patient_ID'], help='String parsing to obtain patient ID from image filename')
+    parser.add_argument('--stain_parsing', type=str, default=config['parsing']['stain'], help='String parsing to obtain stain type from image filename')
+    parser.add_argument('--stain_types', type=str, default=config['parsing']['stain_types'], help='Type of stain used.')
 
-# General arguments to determine if running preprocessing, training, testing, visualisation or benchmarking.
-parser.add_argument("--preprocess", action='store_true', help="Run tissue segmentation, patching of WSI, embed feature vectors, graph creation & compute RWPE.")
-parser.add_argument("--segmentation", action='store_true', help="Run tissue segmentation of WSI")
-parser.add_argument("--embedding", action='store_true', help="Run feature vector extraction of the WSI patches and creation of embedding")
-parser.add_argument("--create_splits", action='store_true', help="Create train/val/test splits")
-parser.add_argument("--train", action='store_true', help="Run ABMIL")
-parser.add_argument("--test", action='store_true', help="Run testing")
-parser.add_argument("--visualise", action='store_true', help="Run heatmap for WSI")
-parser.add_argument("--benchmark", action='store_true', help="Run benchmarking against other models")
+    # Label configurations
+    parser.add_argument("--label", type=str, default=config['labels']['label'], help="Name of the target label in the metadata file")
+    parser.add_argument("--label_dict", type=eval, default=str(config['labels']['label_dict']), help="Dictionary mapping int labels to string labels")
+    parser.add_argument("--n_classes", type=int, default=config['labels']['n_classes'], help="Number of classes")
+    parser.add_argument("--patient_id", type=str, default=config['labels']['patient_id'], help="Name of column containing the patient ID")
 
-args = parser.parse_args()
+    # Training configurations
+    parser.add_argument("--hidden_dim", type=int, default=config['training']['hidden_dim'], help="Size of hidden network dimension")
+    parser.add_argument("--learning_rate", type=float, default=config['training']['learning_rate'], help="Learning rate")
+    parser.add_argument("--num_epochs", type=int, default=config['training']['num_epochs'], help="Number of training epochs")
+    parser.add_argument('--L2_norm', type=float, default=config['training']['L2_norm'], help='weight decay')
+    parser.add_argument("--batch_size", type=int, default=config['training']['batch_size'], help="batch size for training")
+    parser.add_argument("--slide_batch", type=int, default=config['training']['slide_batch'], help="Slide batch size")
+    parser.add_argument("--num_workers", type=int, default=config['training']['num_workers'], help="Number of workers for data loading")
+    parser.add_argument("--scheduler", type=str, default=config['training']['scheduler'], help="learning rate schedule")
+    parser.add_argument("--checkpoint", action="store_true", default=config['training']['checkpoint'], help="Enables checkpointing weights.")
+    parser.add_argument('--seed', type=int, default=config['training']['seed'], help="Random seed")
+    parser.add_argument("--attention_heads", type=int, default=config['training']['attention_heads'], help="Number of GAT heads")
+    parser.add_argument("--stratified_splits", type=int, default=config['training']['stratified_splits'], help="Number of random stratified splits")
 
-def main(args):
+    # Model configurations
+    parser.add_argument("--model_name", type=str, default=config['model']['name'])
 
-    # Run the preprocessing steps together in one go: tissue segmentation, patching of WSI, embed feature vectors, graph creation & compute RWPE.
+    # Embedding configurations
+    parser.add_argument("--embedding_net", type=str, default="resnet50",
+                        choices=list(config['embedding_nets'].keys()),
+                        help="feature extraction network used")
+
+    # Execution flags
+    parser.add_argument("--preprocess", action='store_true', default=config['execution']['preprocess'], help="Run tissue segmentation, patching of WSI, embed feature vectors, graph creation & compute RWPE.")
+    parser.add_argument("--segmentation", action='store_true', default=config['execution']['segmentation'], help="Run tissue segmentation of WSI")
+    parser.add_argument("--embedding", action='store_true', default=config['execution']['embedding'], help="Run feature vector extraction of the WSI patches and creation of embedding")
+    parser.add_argument("--create_splits", action='store_true', default=config['execution']['create_splits'], help="Create train/val/test splits")
+    parser.add_argument("--train", action='store_true', default=config['execution']['train'], help="Run ABMIL")
+    parser.add_argument("--test", action='store_true', default=config['execution']['test'], help="Run testing")
+    parser.add_argument("--visualise", action='store_true', default=config['execution']['visualise'], help="Run heatmap for WSI")
+
+    args = parser.parse_args(remaining_argv)
+
+    # Set embedding_vector_size based on the selected embedding_net
+    args.embedding_vector_size = config['embedding_nets'][args.embedding_net]['size']
+
+    return args, config
+
+
+def main(args, config):
+
+    # Run the preprocessing steps together in one go: tissue segmentation, patching of WSI, embed feature vectors & compute RWPE.
     if args.preprocess:
         # Setup logging
         _, preprocess_logger = setup_results_and_logging(args, "_preprocess")
@@ -101,7 +104,7 @@ def main(args):
         preprocess_logger.info("Done running tissue segmentation of WSIs")
 
         preprocess_logger.info("Running feature vector extraction of the WSI patches and creation of embedding")
-        patch_embedding(args, preprocess_logger)
+        patch_embedding(args, config, preprocess_logger)
         preprocess_logger.info("Done running feature vector extraction of the WSI patches and creation of embedding")
 
         preprocess_logger.info("Creating train/val/test splits")
@@ -125,12 +128,11 @@ def main(args):
         # Setup logging
         _, preprocess_logger = setup_results_and_logging(args, "_preprocess")
         preprocess_logger.info("Running feature vector extraction of the WSI patches and creation of embedding")
-        patch_embedding(args, preprocess_logger)
+        patch_embedding(args, config, preprocess_logger)
         preprocess_logger.info("Done running feature vector extraction of the WSI patches and creation of embedding")
 
     if args.create_splits:
         # Setup logging
-
         _, preprocess_logger = setup_results_and_logging(args, "_preprocess")
         preprocess_logger.info("Creating train/val/test splits")
         sss_dict_path = os.path.join(args.directory, f"train_test_strat_splits_{args.dataset_name}.pkl")
@@ -152,9 +154,15 @@ def main(args):
         test_model(args, results_dir, test_logger)
         test_logger.info("Done testing")
 
+    if args.visualise:
+        results_dir, heatmap_logger = setup_results_and_logging(args, "_heatmaps")
+        heatmap_logger.info("Generating heatmaps")
+        heatmap_generation(args, results_dir, heatmap_logger)
+        heatmap_logger.info("Done generating heatmaps")
+
 
 if __name__ == "__main__":
-    args = parser.parse_args()
-    main(args)
+    args, config = parse_arguments()
+    main(args, config)
 
 

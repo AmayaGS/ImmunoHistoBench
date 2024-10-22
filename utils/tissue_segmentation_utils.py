@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Apr 23 10:52:19 2024
-
-@author: AmayaGS
-"""
-
 # Misc
 import os
 os.environ["OPENCV_IO_MAX_IMAGE_PIXELS"] = str(pow(2,40))
@@ -14,7 +7,7 @@ import pandas as pd
 import csv
 import matplotlib.pyplot as plt
 
-# Hellslide
+# Openslide
 import openslide as osi
 
 # PyTorch

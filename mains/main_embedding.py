@@ -3,18 +3,16 @@ import os
 import pandas as pd
 import pickle
 import time
+import importlib
 
 import torch
 from torchvision import transforms
 
 from utils.setup_utils import seed_everything, collate_fn_none
+from utils.setup_utils import load_config
 from utils.profiling_utils import embedding_profiler
 from utils.embedding_utils import create_embedding
 from utils.dataloaders_utils import Loaders
-
-from models.embedding_models import VGG_embedding, resnet18_embedding, resnet50_embedding, convNext_embedding, ViT_embedding
-from models.embedding_models import ssl_resnet18_embedding, ssl_resnet50_embedding, CTransPath_embedding, Lunit_embedding
-from models.embedding_models import GigaPath_embedding, UNI_embedding, BiOptimus_embedding, Phikon_embedding
 
 # Set environment variables
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -25,7 +23,8 @@ if use_gpu:
     device = "cuda"
 
 
-def patch_embedding(args, logger):
+
+def patch_embedding(args, config, logger):
 
     # Set seed
     seed_everything(args.seed)
@@ -72,47 +71,7 @@ def patch_embedding(args, logger):
     embedding_profiler.reset_gpu_memory()
     embedding_profiler.update_peak_memory()
 
-    if args.embedding_net == 'vgg16':
-        # Load weights for vgg16
-        embedding_net = VGG_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'resnet18':
-        # Load weights for resnet18
-        embedding_net = resnet18_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'resnet50':
-        # Load weights for resnet 50
-        embedding_net = resnet50_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'convnext':
-        # Load weights for convnext
-        embedding_net = convNext_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'ViT':
-        # Load weights for Vision Transformer
-        embedding_net = ViT_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'ssl_resnet18':
-        # Load weights for pretrained resnet18
-        weight_path = os.path.join(args.embedding_weights, "Ciga", "tenpercent_resnet18.pt")
-        embedding_net = ssl_resnet18_embedding(weight_path, embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'ssl_resnet50':
-        # Load weights for resnet 50
-        embedding_net = ssl_resnet50_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'CTransPath':
-        # Load weights for CTransPath
-        weight_path = os.path.join(args.embedding_weights, "CTransPath", "ctranspath.pth")
-        embedding_net = CTransPath_embedding(weight_path, embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'Lunit':
-        # Load weights for Lunit
-        embedding_net = Lunit_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'GigaPath':
-        # Load weights for GigaPath
-        embedding_net = GigaPath_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'Phikon':
-        # Load weights for Phikon
-        embedding_net = Phikon_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'BiOptimus':
-        # Load weights for BioOptimus
-        embedding_net = BiOptimus_embedding(embedding_vector_size=args.embedding_vector_size)
-    elif args.embedding_net == 'UNI':
-        # Load weights for UNI
-        embedding_net = UNI_embedding(embedding_vector_size=args.embedding_vector_size)
+    embedding_net = get_embedding_net(args, config)
 
     if use_gpu:
          embedding_net.cuda()
@@ -128,7 +87,7 @@ def patch_embedding(args, logger):
     dictionaries = os.path.join(args.directory, "dictionaries")
     os.makedirs(dictionaries, exist_ok = True)
 
-    with open(dictionaries + f"/embedding_dict_{args.dataset_name}_{args.embedding_net}_{args.stain_type}.pkl", "wb") as file:
+    with open(dictionaries + f"/embedding_dict_{args.dataset_name}_{args.embedding_net}_{args.stain_used}.pkl", "wb") as file:
         pickle.dump(embedding_dict, file)  # encode dict into Pickle
         logger.info("Done writing embedding_dict into pickle file")
 
@@ -136,3 +95,38 @@ def patch_embedding(args, logger):
                 .format(embedding_time // 60, embedding_time % 60))
     logger.info("Embedding Profiling Results:")
     embedding_profiler.report(is_training=False, is_testing=False)
+
+
+def get_embedding_net(args, config):
+    if args.embedding_net not in config['embedding_nets']:
+        raise ValueError(f"Unknown embedding network: {args.embedding_net}")
+
+    net_config = config['embedding_nets'][args.embedding_net]
+
+    embedding_class = get_embedding_class(net_config['class'], config)
+
+    kwargs = {}
+
+    if net_config['weight_path'] and args.embedding_weights:
+        if not os.path.exists(args.embedding_weights):
+            raise FileNotFoundError(f"Embedding weights directory not found: {args.embedding_weights}")
+
+        weight_path = os.path.join(args.embedding_weights, net_config['weight_path'])
+        if not os.path.exists(weight_path):
+            raise FileNotFoundError(f"Weight file not found: {weight_path}")
+
+        kwargs['weight_path'] = weight_path
+
+    try:
+        return embedding_class(**kwargs)
+    except TypeError as e:
+        raise TypeError(f"Error creating {args.embedding_net} embedding: {str(e)}")
+
+
+def get_embedding_class(class_name, config):
+    if class_name not in config['embedding_classes']:
+        raise ValueError(f"Embedding class {class_name} is not defined in the config")
+
+    module_path, class_name = config['embedding_classes'][class_name].rsplit('.', 1)
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)

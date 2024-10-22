@@ -3,7 +3,6 @@ import time
 from collections import defaultdict
 
 import numpy as np
-from sklearn.metrics import roc_auc_score, classification_report, confusion_matrix
 from sklearn.preprocessing import label_binarize
 from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, classification_report
 from sklearn.metrics import average_precision_score
@@ -143,7 +142,7 @@ def train_loop(args, model, train_loader, loss_fn, optimizer, n_classes):
         if use_gpu:
             data, label = data.cuda(), label.cuda()
 
-        logits, Y_prob, predicted, loss = process_model_output(args, model(data, label), loss_fn)
+        logits, Y_prob, predicted, loss, attention = process_model_output(args, model(data, label), loss_fn)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -184,7 +183,7 @@ def eval_loop(args, model, val_loader, loss_fn, n_classes):
             if use_gpu:
                 data, label = data.cuda(), label.cuda()
 
-            logits, Y_prob, predicted, loss = process_model_output(args, model(data, label), loss_fn)
+            logits, Y_prob, predicted, loss, attention = process_model_output(args, model(data, label), loss_fn)
             val_loss += loss.item()
 
             val_total += label.size(0)

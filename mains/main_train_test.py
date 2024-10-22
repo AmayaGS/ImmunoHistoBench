@@ -103,13 +103,13 @@ def test_model(args, results_dir, logger):
         test_loader = DataLoader(test_fold, batch_size=args.batch_size, shuffle=False,
                                        num_workers=args.num_workers, drop_last=False)
         start_time = time.time()
-        test_results = test_loop(args,
-                                 model,
-                                 test_loader,
-                                 loss,
-                                 args.n_classes,
-                                 logger,
-                                 fold_idx)
+        test_results, attention_scores  = test_loop(args,
+                                                     model,
+                                                     test_loader,
+                                                     loss,
+                                                     args.n_classes,
+                                                     logger,
+                                                     fold_idx)
         inference_time = time.time() - start_time
         test_profiler.update_inference_time(inference_time)
 
@@ -118,6 +118,9 @@ def test_model(args, results_dir, logger):
 
         with open(f"{results_dir}/results_fold_{fold_idx}.pkl", 'wb') as f:
             pickle.dump(test_results, f)
+
+        with open(f"{results_dir}/attention_scores_fold_{fold_idx}.pkl", 'wb') as f:
+            pickle.dump(attention_scores, f)
 
     summarise_test_results(all_results, results_dir, logger, args)
 
