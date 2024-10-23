@@ -15,7 +15,9 @@ dataset on OOD Immunohistochemistry (IHC) autoimmune datasets.
 <img src="Sjogren_results.png" alt="drawing" width="500"/>
 </p>
 
-![heatmap_visualisation.png](heatmap_visualisation.png)
+<p align="center">
+<img src="heatmap_visualisation.png" alt="drawing" width="1000"/>
+</p>
 
 ## How to run the code (WIP)
 
