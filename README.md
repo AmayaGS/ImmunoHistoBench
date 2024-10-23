@@ -6,17 +6,17 @@ dataset on OOD Immunohistochemistry (IHC) autoimmune datasets.
 
 ## Models benchmarked
 
-![models_benchmarked.png](models_benchmarked.png)
+![models_benchmarked.png](figures/models_benchmarked.png)
 
 ## Results
 
 <p align="center">
-<img src="RA_results.png" alt="drawing" width="700"/>
-<img src="Sjogren_results.png" alt="drawing" width="700"/>
+<img src="figures/RA_results.png" alt="drawing" width="700"/>
+<img src="figures/Sjogren_results.png" alt="drawing" width="7 00"/>
 </p>
 
 <p align="center">
-<img src="heatmap_visualisation.png" alt="drawing" width="800"/>
+<img src="figures/heatmap_visualisation.png" alt="drawing" width="800"/>
 </p>
 
 ## How to run the code (WIP)
