@@ -1,3 +1,4 @@
+[![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg?style=plastic)]([https://arxiv.org/abs/2410.21560](https://arxiv.org/abs/2410.21560))
 
 # ImmunoHisto Benchmark
 
