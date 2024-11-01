@@ -1,10 +1,10 @@
 import os
 import time
 from collections import defaultdict
-
 import numpy as np
+
 from sklearn.preprocessing import label_binarize
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, classification_report
+from sklearn.metrics import roc_auc_score, confusion_matrix, classification_report
 from sklearn.metrics import average_precision_score
 
 import torch
@@ -33,7 +33,7 @@ def train_val_loop(args, model, train_loader, val_loader, loss_fn, optimizer, re
 
     results_dict = {
         'train_loss': [], 'train_accuracy': [],
-        'val_loss': [], 'val_accuracy': [], 'val_auc': [], "val_precision": []
+        'val_loss': [], 'val_accuracy': [], 'val_auc': [], 'val_precision': []
     }
 
     for epoch in range(num_epochs):
@@ -90,7 +90,8 @@ def train_val_loop(args, model, train_loader, val_loader, loss_fn, optimizer, re
             best_val_AUC = val_auc
             improved = True
             if checkpoint:
-                torch.save(model.state_dict(), os.path.join(best_model_weights, f"checkpoint_fold_{fold}_auc.pth"))
+                torch.save(model.state_dict(),
+                           os.path.join(best_model_weights, f"checkpoint_fold_{fold}_auc.pth"))
 
         if improved:
             patience_counter = 0
@@ -102,23 +103,6 @@ def train_val_loop(args, model, train_loader, val_loader, loss_fn, optimizer, re
             logger.info(f"Early stopping triggered after {epoch + 1} epochs")
             break
 
-        # if val_accuracy >= best_val_acc:
-        #     best_val_acc = val_accuracy
-        #
-        #     if checkpoint:
-        #         checkpoint_weights = checkpoint_path + "/checkpoint_fold_" + str(fold) + "_epoch_" + str(epoch) + ".pth"
-        #         torch.save(model.state_dict(), checkpoint_weights)
-        #         torch.save(model.state_dict(), best_model_weights + f"/checkpoint_fold_{fold}_accuracy.pth")
-        #
-        #
-        # if val_auc >= best_val_AUC:
-        #     best_val_AUC = val_auc
-        #
-        #     if checkpoint:
-        #         checkpoint_weights = checkpoint_path + "/checkpoint_fold_" + str(fold) + "_epoch_" + str(epoch) + ".pth"
-        #         torch.save(model.state_dict(), checkpoint_weights)
-        #         torch.save(model.state_dict(), best_model_weights + f"/checkpoint_fold_{fold}_auc.pth")
-
     plot_training_results(results_dict, fold, results_dir)
 
     elapsed_time = time.time() - since
@@ -126,6 +110,7 @@ def train_val_loop(args, model, train_loader, val_loader, loss_fn, optimizer, re
     logger.info("Training & validation completed in {:.0f}m {:.0f}s".format(elapsed_time // 60, elapsed_time % 60))
 
     return model, results_dict, best_val_acc, best_val_AUC
+
 
 def train_loop(args, model, train_loader, loss_fn, optimizer, n_classes):
     train_loss = 0

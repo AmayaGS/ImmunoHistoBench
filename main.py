@@ -40,6 +40,8 @@ def parse_arguments():
     parser.add_argument('--train_fraction', type=float, default=config['dataset']['train_fraction'], help="Train fraction")
     parser.add_argument('--val_fraction', type=float, default=config['dataset']['val_fraction'], help="Validation fraction")
     parser.add_argument('--stain_used', type=str, default=config['dataset']['stain_used'], help='Type of stain used.')
+    parser.add_argument('--unet', action='store_true', help='Use Unet for tissue segmentation')
+    parser.add_argument('--unet_weights', type=str, default=config['paths']['unet_weights'], help='Path to UNet weights')
 
     # Parsing configurations
     parser.add_argument('--patient_ID_parsing', type=str, default=config['parsing']['patient_ID'], help='String parsing to obtain patient ID from image filename')
@@ -80,6 +82,7 @@ def parse_arguments():
     parser.add_argument("--embedding", action='store_true', default=config['execution']['embedding'], help="Run feature vector extraction of the WSI patches and creation of embedding")
     parser.add_argument("--create_splits", action='store_true', default=config['execution']['create_splits'], help="Create train/val/test splits")
     parser.add_argument("--train", action='store_true', default=config['execution']['train'], help="Run ABMIL")
+    parser.add_argument("--val", action='store_true', help="Run validation")
     parser.add_argument("--test", action='store_true', default=config['execution']['test'], help="Run testing")
     parser.add_argument("--visualise", action='store_true', default=config['execution']['visualise'], help="Run heatmap for WSI")
 
@@ -147,6 +150,12 @@ def main(args, config):
         train_logger.info("Start training")
         train_model(args, results_dir, train_logger)
         train_logger.info("Done training")
+
+    if args.val:
+        results_dir, val_logger = setup_results_and_logging(args, "_val")
+        val_logger.info("Running validation")
+        test_model(args, results_dir, val_logger)
+        val_logger.info("Done validation")
 
     if args.test:
         results_dir, test_logger = setup_results_and_logging(args, "_testing")

@@ -121,7 +121,6 @@ def test_loop(args, model, test_loader, loss_fn, n_classes, logger, fold):
         'attention_scores': attention
     }
 
-
     return results_dict, attention_scores
 
 

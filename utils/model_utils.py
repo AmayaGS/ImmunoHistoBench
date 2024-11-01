@@ -1,9 +1,12 @@
 import os
+from pathlib import PurePath
 import pickle
 from collections import Counter
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
@@ -173,8 +176,7 @@ def initialise_model(args):
 
     return model, loss_fn, optimizer, lr_scheduler
 
-def summarise_train_results(all_results, mean_best_acc, mean_best_AUC, results_dir, run_settings):
-    #plot_averaged_results(all_results, results_dir + "/")
+def summarise_train_results(mean_best_acc, mean_best_AUC, results_dir, run_settings):
 
     average_best_acc = np.mean(mean_best_acc)
     std_best_acc = np.std(mean_best_acc)
@@ -237,8 +239,7 @@ def summarise_test_results(all_results, results_dir, logger, args):
     logger.info(f"Average F1 Score: {avg_f1:.4f} +/- {sem_f1:.4f}")
     logger.info(f"Average Recall: {avg_recall:.4f} +/- {sem_recall:.4f}")
     logger.info(f"Average Precision: {avg_macro_precision:.4f} +/- {sem_macro_precision:.4f}")
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+
     # Plot average confusion matrix
     avg_cm = np.mean([r['confusion_matrix'] for r in all_results], axis=0)
     plt.figure(figsize=(10, 8))
@@ -253,6 +254,126 @@ def summarise_test_results(all_results, results_dir, logger, args):
     plot_average_roc_curve(all_results, args.n_classes, results_dir)
     plot_average_pr_curve(all_results, args.n_classes, results_dir)
 
+
+def summarise_val_results(all_results, results_dir, logger, args):
+    accuracies = [r['test_accuracy'] for r in all_results]
+    aucs = [r['test_auc'] for r in all_results]
+    precisions = [r['test_avg_precision'] for r in all_results]
+    f1_scores = [r['test_f1'] for r in all_results]
+    recalls = [r['test_recall'] for r in all_results]
+    macro_precisions = [r['test_precision'] for r in all_results]
+
+    # Calculate averages and standard errors
+    avg_accuracy = np.mean(accuracies)
+    sem_accuracy = np.std(accuracies) / np.sqrt(np.size(accuracies))
+    avg_auc = np.mean(aucs)
+    sem_auc = np.std(aucs) / np.sqrt(np.size(aucs))
+    avg_ap = np.mean(precisions)
+    sem_ap = np.std(precisions) / np.sqrt(np.size(precisions))
+    avg_f1 = np.mean(f1_scores)
+    sem_f1 = np.std(f1_scores) / np.sqrt(np.size(f1_scores))
+    avg_recall = np.mean(recalls)
+    sem_recall = np.std(recalls) / np.sqrt(np.size(recalls))
+    avg_macro_precision = np.mean(macro_precisions)
+    sem_macro_precision = np.std(macro_precisions) / np.sqrt(np.size(macro_precisions))
+
+    # Create run settings string
+    run_settings = (
+        f"{args.model_name}_{args.dataset_name}_"
+        f"{args.seed}_{args.learning_rate}")
+
+    # Create results dictionary with all parameters and metrics
+    results_dict = {
+        'learning_rate': args.learning_rate,
+        'embedding_net': args.embedding_net,
+        'accuracy_mean': avg_accuracy,
+        'accuracy_se': sem_accuracy,
+        'auc_mean': avg_auc,
+        'auc_se': sem_auc,
+        'ap_mean': avg_ap,
+        'ap_se': sem_ap,
+        'f1_mean': avg_f1,
+        'f1_se': sem_f1,
+        'recall_mean': avg_recall,
+        'recall_se': sem_recall,
+        'precision_mean': avg_macro_precision,
+        'precision_se': sem_macro_precision
+    }
+
+    # Convert to DataFrame
+    parts = PurePath(results_dir).parts
+    base_results_dir = os.path.join(*parts[0:-2])
+    results_df = pd.DataFrame([results_dict])
+
+    # Define path for the combined results CSV
+    combined_results_path = (f"{base_results_dir}/{args.model_name}_{args.embedding_net}_{args.dataset_name}_{args.seed}_grid_search.csv")
+
+    # If file exists, append without header. If not, create new file with header
+    if os.path.exists(combined_results_path):
+        # Read existing results
+        existing_results = pd.read_csv(combined_results_path)
+
+        # Define the parameter columns that identify a unique configuration
+        param_cols = ['learning_rate', 'embedding_net']
+
+        # Create a boolean mask for matching parameters
+        mask = True
+        for col in param_cols:
+            mask &= (existing_results[col] == results_dict[col])
+
+        if mask.any():
+            # Get the index of the row to replace
+            idx = existing_results.index[mask][0]
+            # Update each column individually
+            for col in results_dict.keys():
+                existing_results.at[idx, col] = results_dict[col]
+        else:
+            # Add new row if combination doesn't exist
+            existing_results = pd.concat([existing_results, results_df], ignore_index=True)
+
+        # Save updated results using context manager
+        with open(combined_results_path, 'w', newline='') as f:
+            existing_results.to_csv(f, index=False)
+    else:
+        # Create new file if it doesn't exist using context manager
+        with open(combined_results_path, 'w', newline='') as f:
+            pd.DataFrame([results_dict]).to_csv(f, index=False)
+
+
+    # Still save individual summary for reference
+    summary_df = pd.DataFrame({
+        'test_accuracy': [avg_accuracy, sem_accuracy],
+        'test_AUC': [avg_auc, sem_auc],
+        'test_AP': [avg_ap, sem_ap],
+        'test_F1': [avg_f1, sem_f1],
+        'test_recall': [avg_recall, sem_recall],
+        'test_precision': [avg_macro_precision, sem_macro_precision]
+    }, index=['mean', 'SE']).T
+
+    summary_path = f"{results_dir}/test_summary_{run_settings}.csv"
+    summary_df.to_csv(summary_path, index=True)
+
+    # Log results
+    logger.info(f"Average Test Accuracy: {avg_accuracy:.4f} +/- {sem_accuracy:.4f}")
+    logger.info(f"Average Test AUC: {avg_auc:.4f} +/- {sem_auc:.4f}")
+    logger.info(f"Average AP: {avg_ap:.4f} +/- {sem_ap:.4f}")
+    logger.info(f"Average F1 Score: {avg_f1:.4f} +/- {sem_f1:.4f}")
+    logger.info(f"Average Recall: {avg_recall:.4f} +/- {sem_recall:.4f}")
+    logger.info(f"Average Precision: {avg_macro_precision:.4f} +/- {sem_macro_precision:.4f}")
+
+    # Plot average confusion matrix
+    avg_cm = np.mean([r['confusion_matrix'] for r in all_results], axis=0)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(avg_cm / np.sum(avg_cm, axis=1)[:, None], annot=True, fmt='.2f', cmap='Blues')
+    plt.title('Average Normalized Confusion Matrix')
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.savefig(f"{results_dir}/{run_settings}_confusion_matrix.png")
+    plt.close()
+
+    # Plot average curves
+    plot_average_roc_curve(all_results, args.n_classes, results_dir)
+    plot_average_pr_curve(all_results, args.n_classes, results_dir)
 
 def minority_sampler(train_graph_dict):
     # calculate weights for minority oversampling

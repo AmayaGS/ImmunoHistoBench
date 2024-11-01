@@ -14,6 +14,9 @@ import openslide as osi
 import torch
 from torchvision import transforms
 
+# UNET model
+from models.UNet_models import UNet_512
+
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 if DEVICE == torch.device('cuda'):
     print("Using CUDA")
@@ -232,7 +235,7 @@ def save_patches(image_dir,
             try:
                 stain_type = eval(stain_parsing)
             except Exception as e:
-                logger.info(f"Error parsing stain type for {img}: {str(e)}. Using 'default'.")
+                logger.info(f"Error parsing stain type for {img}: {str(e)}. Using 'NA'.")
                 stain_type = "default"
 
             mask_name = img_name + ".png"

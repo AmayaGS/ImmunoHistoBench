@@ -17,25 +17,38 @@ def setup_results_and_logging(args, log_type):
     current_directory = args.directory
 
     run_results_folder = (
-        f"{args.model_name}_{args.embedding_net}_{args.dataset_name}_"
-        f"{args.seed}_{args.learning_rate}")
+        f"{args.model_name}_{args.embedding_net}_{args.dataset_name}_{args.seed}_{args.learning_rate}")
 
     results_dir = os.path.join(current_directory, "results", run_results_folder)
     os.makedirs(results_dir, exist_ok=True)
 
-    # Set up logging
-    log_file_path = os.path.join(results_dir, run_results_folder + log_type + ".log")
+    log_file_path = results_dir + "/" + f"{run_results_folder}_{log_type}.log"
 
-    # Configure logging
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s - %(message)s',
-                        datefmt='%Y-%m-%d %H:%m',
-                        handlers=[
-                            logging.FileHandler(log_file_path),
-                            logging.StreamHandler()
-                        ])
+    # Create a new logger with a unique name
+    logger = logging.getLogger(f'MUSTANG_{run_results_folder}_{log_type}')
 
-    logger = logging.getLogger('ImmunoHistoBench')
+    # Reset handlers to avoid duplicate logging
+    if logger.handlers:
+        logger.handlers.clear()
+
+    # Set the logging level
+    logger.setLevel(logging.INFO)
+
+    # Create formatters and handlers
+    formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M')
+
+    # File handler
+    file_handler = logging.FileHandler(log_file_path)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Stream handler
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
+    # Prevent propagation to root logger to avoid duplicate logs
+    logger.propagate = False
 
     return results_dir, logger
 

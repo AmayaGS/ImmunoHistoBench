@@ -1,9 +1,10 @@
 # Paths
 paths:
-  input_directory: "C:/Users/Amaya/Documents/PhD/Data/Test_Data_RA"
-  output_directory: "C:/Users/Amaya/Documents/PhD/Data/Test_Data_RA"
+  input_directory: "C:/Users/Amaya/Documents/PhD/Data/IHC Foundation Model/WSIs"
+  output_directory: "C:/Users/Amaya/Documents/PhD/Data/IHC Foundation Model"
   embedding_weights: "C:/Users/Amaya/Documents/PhD/Data/WSI_foundation/"
   path_to_patches: "C:/Users/Amaya/Documents/PhD/Data/Test_Data_RA/extracted_patches_2/patches"
+  unet_weights: "C:/Users/Amaya/Documents/PhD/Data/UNet_512_1.pth.tar"
 
 # Dataset configurations
 dataset:
@@ -11,7 +12,7 @@ dataset:
   patch_size: 224
   overlap: 0
   coverage: 0.4
-  slide_level: 2
+  slide_level: 1
   mask_level: 2
   patch_batch_size: 10
   train_fraction: 0.8
