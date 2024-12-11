@@ -104,10 +104,10 @@ The stain_types dictionary maps the stain types in your dataset to numeric codin
 
 ### Preprocessing
 
-Preprocessing can be run using the following command:
+Preprocessing can be run using the following command, where `embedding_net` corresponds to the Feature Extractor model used (for example, CTransPath, UNI, BiOptimus, ... see below for more details):
 
 ```bash
-python main.py --preprocess --input_directory path/to/slides --directory path/to/output --dataset_name dataset_name
+python main.py --preprocess --embedding_net 'UNI' --input_directory path/to/slides --directory path/to/output --dataset_name dataset_name
 ```
 
 `--preprocess` will create 4 new folders: output, dictionaries, masks, contours.
