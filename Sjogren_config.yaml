@@ -4,6 +4,7 @@ paths:
   output_directory: "C:/Users/Amaya/Documents/PhD/Data/Test_Data_RA"
   embedding_weights: "C:/Users/Amaya/Documents/PhD/Data/WSI_foundation/"
   path_to_patches: "C:/Users/Amaya/Documents/PhD/Data/Test_Data_RA/extracted_patches_2/patches"
+  unet_weights: "C:/Users/Amaya/Documents/PhD/Data/UNet_512_1.pth.tar"
 
 # Dataset configurations
 dataset:

@@ -180,8 +180,8 @@ def save_patches(image_dir,
     mask_dir = os.path.join(output_dir, 'masks')
     contours_dir = os.path.join(output_dir, 'contours')
     thumbnails_dir = os.path.join(output_dir, 'thumbnails')
-    results_dir = os.path.join(output_dir, f'extracted_patches_{slide_level}')
-    patches_dir = os.path.join(results_dir, 'patches')
+    results_dir = os.path.join(output_dir, f'extracted_patches_{slide_level}') # csv results file
+    patches_dir = os.path.join(results_dir, 'patches') # folder with patches
     filename = os.path.join(results_dir, 'extracted_patches.csv')
 
     os.makedirs(mask_dir, exist_ok=True)

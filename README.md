@@ -20,7 +20,7 @@ dataset on OOD Immunohistochemistry (IHC) autoimmune datasets.
 <img src="figures/heatmap_visualisation.png" alt="drawing" width="800"/>
 </p>
 
-## How to run the code (WIP)
+## How to run the code
 
 ### Basic Usage
 
@@ -28,18 +28,22 @@ dataset on OOD Immunohistochemistry (IHC) autoimmune datasets.
 
 First create a virtual environmemt and install the requirements.txt
 
-```bash
-conda create -n immunohistobench python=3.10.10 -y
-conda activate immunohistobench
+### General Requirements
+- Python 3.10
+- PyTorch 2.5
+- NVIDIA GPU with CUDA 12.4
 
-# OpenSlide
-conda install -y -c conda-forge openslide openslide-python
+```bash
+python -m venv immunohistobench
+source immunohistobench/bin/activate
 
 # PyTorch
-conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124
+
+pip install -r requirements.txt
+
 ```
 
-TODO - add requirements.txt
 
 ### Usage
 

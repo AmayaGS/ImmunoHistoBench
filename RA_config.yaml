@@ -1,6 +1,6 @@
 # Paths
 paths:
-  input_directory: "C:/Users/Amaya/Documents/PhD/Data/IHC Foundation Model/WSIs"
+  input_directory: "C:/Users/Amaya/Documents/PhD/Data/IHC Foundation Model/WSIs" # Histopathology Slide location - unprocessed.
   output_directory: "C:/Users/Amaya/Documents/PhD/Data/IHC Foundation Model"
   embedding_weights: "C:/Users/Amaya/Documents/PhD/Data/WSI_foundation/"
   path_to_patches: "C:/Users/Amaya/Documents/PhD/Data/Test_Data_RA/extracted_patches_2/patches"
@@ -11,7 +11,7 @@ dataset:
   name: "RA"  # choices: ['RA', 'Sjogren']
   patch_size: 224
   overlap: 0
-  coverage: 0.4
+  coverage: 0.4 # percent of tissue coverage in the patch
   slide_level: 1
   mask_level: 2
   patch_batch_size: 10
