@@ -8,8 +8,7 @@ import importlib
 import torch
 from torchvision import transforms
 
-from utils.setup_utils import seed_everything, collate_fn_none
-from utils.setup_utils import load_config
+from utils.setup_utils import collate_fn_none
 from utils.profiling_utils import embedding_profiler
 from utils.embedding_utils import create_embedding
 from utils.dataloaders_utils import Loaders
@@ -25,9 +24,6 @@ if use_gpu:
 
 
 def patch_embedding(args, config, logger):
-
-    # Set seed
-    seed_everything(args.seed)
 
     # ImageNet transforms - good for UNI, GigaPath, Phikon
     transform = transforms.Compose(

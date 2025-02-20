@@ -23,7 +23,7 @@ dataset:
 parsing:
   patient_ID: 'img.split("_")[0]' # "Patient123_stain.tiff" -> Patient123
   stain: 'img.split("_")[1]' # "Patient123_stain.tiff" -> stain
-  stain_types: {'NA': 0, 'HE': 1, 'CD3': 2, 'CD138': 3, 'CD20': 4, 'CD21': 5} # RA stain types
+  stain_types: {'NA': 0, 'HE': 1, 'CD3': 2, 'CD138': 3, 'CD20': 4, 'CD21': 5} # Sjogren stain types
 
 
 # Label/split configurations

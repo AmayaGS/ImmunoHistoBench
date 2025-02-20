@@ -8,6 +8,7 @@ from mains.main_heatmaps import heatmap_generation
 from utils.setup_utils import setup_results_and_logging
 from utils.model_utils import create_cross_validation_splits
 from utils.setup_utils import load_config
+from utils.setup_utils import seed_everything
 
 
 def parse_arguments():
@@ -95,6 +96,9 @@ def parse_arguments():
 
 
 def main(args, config):
+
+    # Set seed
+    seed_everything(args.seed)
 
     # Run the preprocessing steps together in one go: tissue segmentation, patching of WSI, embed feature vectors & compute RWPE.
     if args.preprocess:
