@@ -22,34 +22,7 @@ dataset on OOD Immunohistochemistry (IHC) autoimmune datasets.
 
 ## How to run the code
 
-### Setup
-
-First clone the repository to the desire location and enter the directory:
-
-```bash
-# clone project to desired location
-git clone https://github.com/AmayaGS/ImmunoHistoBench
-cd ImmunoHistoBench
-```
-
-Then create a virtual environmemt and install the requirements.txt
-
-#### General Requirements
-- Python 3.10
-- PyTorch 2.5
-- NVIDIA GPU with CUDA 12.4
-
-```bash
-# Virtual Environment
-python -m venv immunohistobench
-source immunohistobench/bin/activate
-
-# PyTorch with cuda capabilities
-pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124
-
-pip install -r requirements.txt  
-
-```
+ 
 
 
 ### Usage
