@@ -178,3 +178,21 @@ python main.py --visualise --directory path/to/output --dataset_name dataset_nam
 ```
 
 This will generate heatmaps for the test folds using the trained model weights and store them in the `heatmap_path` directory.
+
+--------------
+
+If this code or article were useful to you, please consider citing:
+
+````
+
+@article{ImmunoHisto_GS_2024,
+      title={Going Beyond H&E and Oncology: How Do Histopathology Foundation Models Perform for Multi-stain IHC and Immunology?}, 
+      author={Amaya Gallagher-Syed and Elena Pontarini and Myles J. Lewis and Michael R. Barnes and Gregory Slabaugh},
+      booktitle = {Workshop on Advancements In Medical Foundation Models at NeurIPS 2024},
+      year={2024},
+      url={https://arxiv.org/abs/2410.21560}, 
+}
+
+````
+
+--------------
